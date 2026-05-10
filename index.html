@@ -5,377 +5,311 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Iain's Trading System</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #080c12; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif; }
-  input[type=range] { accent-color: #3b82f6; width: 100%; }
-  input[type=number] { width: 100%; background: #0d1117; border: 1px solid #1e2a3a; border-radius: 8px; padding: 10px 14px; color: #e2e8f0; font-size: 15px; font-family: monospace; outline: none; }
-  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #0d1117; } ::-webkit-scrollbar-thumb { background: #1e2a3a; border-radius: 3px; }
-  .btn { border: none; border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; letter-spacing: 0.5px; transition: all 0.2s; }
-  .btn-primary { background: linear-gradient(135deg, #3b82f6, #2563eb); color: #fff; }
-  .btn-primary:disabled { background: #1e2a3a; color: #4a6080; cursor: not-allowed; }
-  .tab { background: transparent; color: #4a6080; border: none; border-bottom: 2px solid transparent; border-radius: 8px 8px 0 0; padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .tab.active { background: #1e2a3a; color: #e2e8f0; border-bottom: 2px solid #3b82f6; }
-  .signal-row { display: grid; grid-template-columns: 32px 70px 100px 1fr 95px 95px 95px 95px 65px; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid #0d1117; }
-  .signal-row:nth-child(even) { background: #0a0f16; }
-  .signal-row:nth-child(odd) { background: #080c12; }
-  .signal-row:hover { background: #111827; }
-  .col-header { display: grid; grid-template-columns: 32px 70px 100px 1fr 95px 95px 95px 95px 65px; gap: 8px; padding: 10px 16px; border-bottom: 1px solid #1e2a3a; background: #0d1117; }
-  .mono { font-family: 'SF Mono', 'Menlo', monospace; }
-  @media (max-width: 768px) {
-    .signal-row { grid-template-columns: 28px 55px 85px 1fr; }
-    .signal-row .hide-mobile { display: none; }
-    .col-header { grid-template-columns: 28px 55px 85px 1fr; }
-    .col-header .hide-mobile { display: none; }
-  }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #080c12; color: #e2e8f0; font-family: -apple-system, BlinkMacSystemFont, system-ui, sans-serif; min-height: 100vh; }
+.mono { font-family: 'SF Mono', Menlo, monospace; }
+.btn { border: none; border-radius: 8px; padding: 10px 20px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+.btn-primary { background: linear-gradient(135deg,#3b82f6,#2563eb); color: #fff; }
+.btn-primary:disabled { background: #1e2a3a; color: #4a6080; cursor: not-allowed; }
+.tab { background: transparent; color: #4a6080; border: none; border-bottom: 2px solid transparent; border-radius: 8px 8px 0 0; padding: 10px 20px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.tab.active { background: #1e2a3a; color: #e2e8f0; border-bottom-color: #3b82f6; }
+input[type=number] { width: 100%; background: #0d1117; border: 1px solid #1e2a3a; border-radius: 8px; padding: 10px 14px; color: #e2e8f0; font-size: 15px; font-family: monospace; outline: none; }
+input[type=range] { accent-color: #3b82f6; width: 100%; }
+.signal-row { display: grid; grid-template-columns: 30px 65px 110px 1fr 90px 90px 90px 90px 60px; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid #0a0f16; }
+.signal-row:hover { background: #111827 !important; }
+.header-row { display: grid; grid-template-columns: 30px 65px 110px 1fr 90px 90px 90px 90px 60px; gap: 8px; padding: 10px 16px; background: #0d1117; border-bottom: 1px solid #1e2a3a; }
+@media(max-width:700px){ .signal-row,.header-row { grid-template-columns: 28px 60px 100px 1fr; } .hm { display:none; } }
 </style>
 </head>
 <body>
-<div id="root"></div>
-<script type="text/babel">
-const { useState, useCallback } = React;
-
-const ACCOUNT_SIZE = 1000;
-const BASE_RISK_PCT = 1.5;
-
+<div id="app"></div>
+<script>
+const ACCOUNT = 1000;
+const BASE_RISK = 1.5;
 const SECTORS = [
-{ name: “Technology”, tickers: [“AAPL”,“MSFT”,“NVDA”,“AVGO”,“AMD”,“CRM”,“NOW”,“SNOW”,“NET”,“DDOG”] },
-{ name: “Financials”, tickers: [“JPM”,“GS”,“MS”,“V”,“MA”,“PYPL”,“COIN”,“SQ”,“HOOD”,“AFRM”] },
-{ name: “Energy”, tickers: [“XOM”,“CVX”,“OXY”,“DVN”,“MPC”,“VLO”,“HAL”,“SLB”,“BKR”,“FANG”] },
-{ name: “Healthcare”, tickers: [“UNH”,“LLY”,“JNJ”,“ABBV”,“MRK”,“AMGN”,“ISRG”,“MRNA”,“TDOC”,“DXCM”] },
-{ name: “Cybersecurity”, tickers: [“CRWD”,“PANW”,“FTNT”,“S”,“OKTA”,“ZS”,“TENB”,“SAIL”,“QLYS”,“CYBR”] },
-{ name: “Software”, tickers: [“ADBE”,“ORCL”,“SHOP”,“HUBS”,“TWLO”,“BILL”,“GTLB”,“MDB”,“CFLT”,“NET”] },
-{ name: “Semiconductors”, tickers: [“NVDA”,“AMD”,“AVGO”,“QCOM”,“MU”,“AMAT”,“LRCX”,“KLAC”,“SWKS”,“MRVL”] },
-{ name: “Consumer Disc”, tickers: [“AMZN”,“TSLA”,“HD”,“MCD”,“NKE”,“LULU”,“DECK”,“ONON”,“CROX”,“RH”] },
+  {name:"Technology", tickers:["AAPL","MSFT","NVDA","AVGO","AMD","CRM","NOW","SNOW","NET","DDOG"]},
+  {name:"Financials", tickers:["JPM","GS","V","MA","PYPL","COIN","SQ","HOOD","AFRM","SOFI"]},
+  {name:"Energy", tickers:["XOM","CVX","OXY","DVN","MPC","VLO","HAL","SLB","BKR","FANG"]},
+  {name:"Healthcare", tickers:["UNH","LLY","JNJ","ABBV","MRK","AMGN","ISRG","MRNA","DXCM","TDOC"]},
+  {name:"Cybersecurity", tickers:["CRWD","PANW","FTNT","S","OKTA","ZS","TENB","SAIL","QLYS","CYBR"]},
+  {name:"Software", tickers:["ADBE","ORCL","SHOP","HUBS","TWLO","BILL","GTLB","MDB","CFLT","ZM"]},
+  {name:"Semiconductors", tickers:["NVDA","AMD","AVGO","QCOM","MU","AMAT","LRCX","KLAC","SWKS","MRVL"]},
+  {name:"Consumer", tickers:["AMZN","TSLA","HD","MCD","NKE","LULU","DECK","ONON","CROX","RH"]},
 ];
 
-function fmt(n, d=2) { return n==null||isNaN(n) ? “–” : Number(n).toFixed(d); }
-function fmtPct(n) { if(n==null||isNaN(n)) return “–”; return (n>=0?”+”:””)+Number(n).toFixed(2)+”%”; }
-
-function ema(closes, period) {
-if(closes.length < period) return null;
-const k = 2/(period+1);
-let e = closes.slice(0,period).reduce((a,b)=>a+b,0)/period;
-for(let i=period;i<closes.length;i++) e = closes[i]*k + e*(1-k);
+function ema(arr, p) {
+if(arr.length < p) return null;
+const k = 2/(p+1);
+let e = arr.slice(0,p).reduce((a,b)=>a+b,0)/p;
+for(let i=p;i<arr.length;i++) e = arr[i]*k+e*(1-k);
 return e;
 }
-
-function rsi(closes, period=14) {
-if(closes.length < period+1) return null;
-let g=0,l=0;
-for(let i=1;i<=period;i++){const d=closes[i]-closes[i-1]; if(d>=0)g+=d; else l-=d;}
-let ag=g/period, al=l/period;
-for(let i=period+1;i<closes.length;i++){const d=closes[i]-closes[i-1]; ag=(ag*(period-1)+Math.max(d,0))/period; al=(al*(period-1)+Math.max(-d,0))/period;}
-return al===0 ? 100 : 100-100/(1+ag/al);
-}
+function fmt(n,d=2){return n==null||isNaN(n)?”–”:Number(n).toFixed(d);}
+function fmtP(n){if(n==null||isNaN(n))return “–”;return(n>=0?”+”:””)+n.toFixed(2)+”%”;}
 
 function analyze(ticker, data) {
-const closes = data.map(d=>d.c);
-const highs = data.map(d=>d.h);
-const lows = data.map(d=>d.l);
-const vols = data.map(d=>d.v);
-if(closes.length < 55) return null;
-
-const price = closes[closes.length-1];
-const prev = closes[closes.length-2];
-const prevH = highs[highs.length-2];
-const e9=ema(closes,9), e21=ema(closes,21), e50=ema(closes,50);
-const stage2 = e9>e21 && e21>e50 && price>e50;
-if(!stage2) return null;
-
+const cl=data.map(d=>d.c), hi=data.map(d=>d.h), lo=data.map(d=>d.l);
+if(cl.length<55) return null;
+const price=cl[cl.length-1], prev=cl[cl.length-2], prevH=hi[hi.length-2];
+const e9=ema(cl,9), e21=ema(cl,21), e50=ema(cl,50);
+if(!(e9>e21&&e21>e50&&price>e50)) return null;
 const tags=[];
 if(price>prevH) tags.push(“PDH”);
-const h52=Math.max(…highs.slice(-252));
-if(price>=h52*0.995) tags.push(“ATH”);
-else if(price>=h52*0.97) tags.push(“nrATH”);
-
-const ranges=closes.slice(-10).map((c,i,a)=>i===0?0:Math.abs(c-a[i-1]));
-const rr=ranges.slice(-3).reduce((a,b)=>a+b,0)/3;
-const pr=ranges.slice(0,7).reduce((a,b)=>a+b,0)/7;
-if(rr<pr*0.6) tags.push(“VCP”);
-
-const rl=Math.min(…lows.slice(-5)), pl=Math.min(…lows.slice(-15,-5));
-if(rl<pl && price>pl) tags.push(“UC”);
-
-if(Math.abs(price-e21)/e21<0.02 && price>e21) tags.push(“21e”);
-if(Math.abs(price-e50)/e50<0.03 && price>e50) tags.push(“50e”);
-
-const rs=(closes[closes.length-1]/closes[closes.length-20])-1;
-if(rs>0.05) tags.push(“RS+”);
-
-const wkH=Math.max(…highs.slice(-5)), pwkH=Math.max(…highs.slice(-10,-5));
-if(wkH>pwkH) tags.push(“WK”);
-
-const engines=tags.filter(t=>[“UC”,“VCP”,“21e”,“50e”,“WK”].includes(t));
-const triggers=tags.filter(t=>[“PDH”,“GAP”].includes(t));
-if(engines.length<1||triggers.length<1) return null;
-
-const stopDist=Math.max(price*0.005, price-Math.min(…lows.slice(-5)));
-const stop=price-stopDist;
-const riskD=ACCOUNT_SIZE*(BASE_RISK_PCT/100);
-let shares=Math.floor(riskD/stopDist);
-const cap=ACCOUNT_SIZE*0.3;
-if(shares*price>cap) shares=Math.floor(cap/price);
-
-const adr=closes.slice(-20).reduce((s,c,i,a)=>i===0?0:s+Math.abs(c-a[i-1])/a[i-1]*100,0)/19;
-if(adr>8) tags.push(”!ATR”);
-if((stopDist/price)*100>5) tags.push(”!EXT”);
-
-const avgVol=vols.slice(-20).reduce((a,b)=>a+b,0)/20;
-
-return {
-ticker, price, change:((price-prev)/prev)*100,
-e9, e21, e50, tags,
-alert:fmt(price), stop:fmt(stop),
-t2r:fmt(price+stopDist*2), t5r:fmt(price+stopDist*5),
-shares, risk:fmt(riskD), adr:fmt(adr),
-score: engines.length*2+triggers.length+(rs>0.1?1:0)+(price>=h52*0.97?1:0)
-};
+const h52=Math.max(…hi.slice(-252));
+if(price>=h52*0.995) tags.push(“ATH”); else if(price>=h52*0.97) tags.push(“nrATH”);
+const rng=cl.slice(-10).map((c,i,a)=>i===0?0:Math.abs(c-a[i-1]));
+if(rng.slice(-3).reduce((a,b)=>a+b,0)/3 < rng.slice(0,7).reduce((a,b)=>a+b,0)/7*0.6) tags.push(“VCP”);
+if(Math.min(…lo.slice(-5))<Math.min(…lo.slice(-15,-5))&&price>Math.min(…lo.slice(-15,-5))) tags.push(“UC”);
+if(Math.abs(price-e21)/e21<0.02&&price>e21) tags.push(“21e”);
+if(Math.abs(price-e50)/e50<0.03&&price>e50) tags.push(“50e”);
+const rs=price/cl[cl.length-20]-1; if(rs>0.05) tags.push(“RS+”);
+if(Math.max(…hi.slice(-5))>Math.max(…hi.slice(-10,-5))) tags.push(“WK”);
+const eng=tags.filter(t=>[“UC”,“VCP”,“21e”,“50e”,“WK”].includes(t));
+const trig=tags.filter(t=>[“PDH”,“GAP”].includes(t));
+if(!eng.length||!trig.length) return null;
+const sd=Math.max(price*0.005, price-Math.min(…lo.slice(-5)));
+const stop=price-sd, riskD=ACCOUNT*(BASE_RISK/100);
+let sh=Math.floor(riskD/sd); if(sh*price>ACCOUNT*0.3) sh=Math.floor(ACCOUNT*0.3/price);
+const adr=cl.slice(-20).reduce((s,c,i,a)=>i===0?0:s+Math.abs(c-a[i-1])/a[i-1]*100,0)/19;
+if(adr>8) tags.push(”!ATR”); if((sd/price)*100>5) tags.push(”!EXT”);
+return {ticker,price,change:((price-prev)/prev)*100,tags,
+alert:fmt(price),stop:fmt(stop),t2r:fmt(price+sd*2),t5r:fmt(price+sd*5),
+shares:sh,score:eng.length*2+trig.length+(rs>0.1?1:0)+(price>=h52*0.97?1:0)};
 }
 
 async function fetchStock(ticker) {
-const url = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1y`;
-const proxy = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-const res = await fetch(proxy);
-const json = await res.json();
-const r = JSON.parse(json.contents)?.chart?.result?.[0];
-if(!r) return null;
-const q=r.indicators.quote[0];
-return r.timestamp.map((t,i)=>({c:q.close[i],h:q.high[i],l:q.low[i],o:q.open[i],v:q.volume[i]})).filter(d=>d.c!=null);
-}
-
-function Tag({label}) {
-const colors={PDH:”#22c55e”,ATH:”#f59e0b”,nrATH:”#f59e0b”,VCP:”#3b82f6”,UC:”#8b5cf6”,“21e”:”#06b6d4”,“50e”:”#0ea5e9”,“RS+”:”#10b981”,WK:”#a855f7”,”!ATR”:”#ef4444”,”!EXT”:”#f97316”};
-const c=colors[label]||”#334155”;
-return <span style={{background:c+“22”,color:c,border:`1px solid ${c}44`,borderRadius:4,padding:“2px 6px”,fontSize:10,fontWeight:700,marginRight:3,whiteSpace:“nowrap”}}>{label}</span>;
-}
-
-function StatBox({label,value,color}) {
-return (
-<div style={{background:”#0d1117”,border:“1px solid #1e2a3a”,borderRadius:8,padding:“12px 16px”,flex:1,minWidth:100}}>
-<div style={{fontSize:10,color:”#4a6080”,letterSpacing:2,textTransform:“uppercase”,marginBottom:6}}>{label}</div>
-<div className=“mono” style={{fontSize:18,fontWeight:700,color:color||”#e2e8f0”}}>{value||”–”}</div>
-</div>
-);
-}
-
-function App() {
-const [scanning,setScanning]=useState(false);
-const [progress,setProgress]=useState({cur:0,tot:0,ticker:””});
-const [signals,setSignals]=useState([]);
-const [sectors,setSectors]=useState([]);
-const [posture,setPosture]=useState(null);
-const [spyPrice,setSpyPrice]=useState(null);
-const [spyChg,setSpyChg]=useState(null);
-const [lastScan,setLastScan]=useState(null);
-const [tab,setTab]=useState(“signals”);
-const [entry,setEntry]=useState(””);
-const [stopP,setStopP]=useState(””);
-const [riskPct,setRiskPct]=useState(BASE_RISK_PCT);
-const [log,setLog]=useState(””);
-
-const runScan = useCallback(async()=>{
-setScanning(true); setSignals([]); setSectors([]); setLog(””);
 try {
+const url=`https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?interval=1d&range=1y`;
+const r=await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
+const j=await r.json();
+const res=JSON.parse(j.contents)?.chart?.result?.[0];
+if(!res) return null;
+const q=res.indicators.quote[0];
+return res.timestamp.map((_,i)=>({c:q.close[i],h:q.high[i],l:q.low[i],v:q.volume[i]})).filter(d=>d.c!=null);
+} catch(e){return null;}
+}
+
+// State
+let state = {
+scanning:false, tab:“signals”, signals:[], sectors:[],
+posture:null, spyPrice:null, spyChg:null, lastScan:null,
+progress:{cur:0,tot:0,ticker:””},
+entry:””, stop:””, riskPct:BASE_RISK
+};
+
+function setState(patch) { state={…state,…patch}; render(); }
+
+const TAG_COLORS = {PDH:”#22c55e”,ATH:”#f59e0b”,nrATH:”#f59e0b”,VCP:”#3b82f6”,UC:”#8b5cf6”,“21e”:”#06b6d4”,“50e”:”#0ea5e9”,“RS+”:”#10b981”,WK:”#a855f7”,”!ATR”:”#ef4444”,”!EXT”:”#f97316”};
+
+function tagHTML(t) {
+const c=TAG_COLORS[t]||”#334155”;
+return `<span style="background:${c}22;color:${c};border:1px solid ${c}44;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;margin-right:3px;display:inline-block">${t}</span>`;
+}
+
+function statBox(label,value,color) {
+return `<div style="background:#0d1117;border:1px solid #1e2a3a;border-radius:8px;padding:12px 16px;flex:1;min-width:90px">
+<div style="font-size:10px;color:#4a6080;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">${label}</div>
+<div class=“mono” style=“font-size:18px;font-weight:700;color:${color||”#e2e8f0”}”>${value||”–”}</div>
+
+  </div>`;
+}
+
+async function runScan() {
+setState({scanning:true,signals:[],sectors:[],posture:null});
+// SPY
 const spyData=await fetchStock(“SPY”);
 if(spyData){
 const cl=spyData.map(d=>d.c);
 const e9=ema(cl,9),e21=ema(cl,21),e50=ema(cl,50),p=cl[cl.length-1];
-setSpyPrice(p); setSpyChg(((p-cl[cl.length-2])/cl[cl.length-2])*100);
-if(e9>e21&&e21>e50&&p>e50) setPosture(“BULLISH”);
-else if(p<e50&&e9<e50) setPosture(“BEARISH”);
-else setPosture(“CAUTION”);
+const chg=((p-cl[cl.length-2])/cl[cl.length-2])*100;
+let posture=e9>e21&&e21>e50&&p>e50?“BULLISH”:p<e50&&e9<e50?“BEARISH”:“CAUTION”;
+setState({spyPrice:p,spyChg:chg,posture});
 }
-const all=[…new Set(SECTORS.flatMap(s=>s.tickers))];
-setProgress({cur:0,tot:all.length,ticker:””});
+const allTickers=[…new Set(SECTORS.flatMap(s=>s.tickers))];
+setState({progress:{cur:0,tot:allTickers.length,ticker:””}});
 const sectorMap={};
 const allSigs=[];
 for(const sec of SECTORS){
 let score=0,count=0;
 for(const t of sec.tickers){
-setProgress(p=>({…p,cur:p.cur+1,ticker:t}));
-setLog(l=>l+`Scanning ${t}...\n`);
-try{
+setState({progress:{cur:state.progress.cur+1,tot:allTickers.length,ticker:t}});
 const data=await fetchStock(t);
-if(!data) continue;
+if(data){
 const cl=data.map(d=>d.c);
 const e9=ema(cl,9),e21=ema(cl,21),e50=ema(cl,50),p=cl[cl.length-1];
 let sc=0;
-if(p>e9)sc++; if(p>e21)sc++; if(p>e50)sc++; if(e9>e21)sc++;
-score+=sc; count++;
+if(p>e9)sc++;if(p>e21)sc++;if(p>e50)sc++;if(e9>e21)sc++;
+score+=sc;count++;
 const sig=analyze(t,data);
 if(sig) allSigs.push({…sig,sector:sec.name});
-}catch(e){}
-await new Promise(r=>setTimeout(r,120));
+}
+await new Promise(r=>setTimeout(r,150));
 }
 sectorMap[sec.name]=count>0?score/count:0;
+setState({sectors:Object.entries(sectorMap).map(([name,score])=>({name,score,status:score>=3?“HOT”:score>=2?“WARM”:“COLD”})).sort((a,b)=>b.score-a.score)});
 }
-const sorted=Object.entries(sectorMap).map(([name,score])=>({name,score,status:score>=3?“HOT”:score>=2?“WARM”:“COLD”})).sort((a,b)=>b.score-a.score);
-setSectors(sorted);
-setSignals(allSigs.sort((a,b)=>b.score-a.score));
-setLastScan(new Date());
-}catch(e){ setLog(l=>l+“Error: “+e.message); }
-finally{ setScanning(false); setProgress({cur:0,tot:0,ticker:””}); }
-},[]);
+setState({scanning:false,signals:allSigs.sort((a,b)=>b.score-a.score),lastScan:new Date()});
+}
 
-const entryN=parseFloat(entry), stopN=parseFloat(stopP);
-const riskD=ACCOUNT_SIZE*(riskPct/100);
-const sd=entryN-stopN;
-const sh=sd>0?Math.floor(riskD/sd):0;
-const cost=sh*entryN, cap=ACCOUNT_SIZE*0.3;
-const capped=cost>cap?Math.floor(cap/entryN):sh;
-const postureColor=posture===“BULLISH”?”#22c55e”:posture===“BEARISH”?”#ef4444”:”#f59e0b”;
+function render() {
+const s=state;
+const pc=s.posture===“BULLISH”?”#22c55e”:s.posture===“BEARISH”?”#ef4444”:”#f59e0b”;
 
-return (
-<div style={{minHeight:“100vh”}}>
-{/* Header */}
-<div style={{background:“linear-gradient(135deg,#0d1117,#0a1628)”,borderBottom:“1px solid #1e2a3a”,padding:“14px 20px”,display:“flex”,alignItems:“center”,justifyContent:“space-between”,position:“sticky”,top:0,zIndex:100}}>
-<div style={{display:“flex”,alignItems:“center”,gap:10}}>
-<div style={{width:34,height:34,borderRadius:8,background:“linear-gradient(135deg,#3b82f6,#8b5cf6)”,display:“flex”,alignItems:“center”,justifyContent:“center”,fontWeight:900,fontSize:16}}>I</div>
-<div>
-<div style={{fontSize:17,fontWeight:800}}>Iain’s Trading System</div>
-<div style={{fontSize:11,color:”#4a6080”}}>{lastScan?`Last scan: ${lastScan.toLocaleTimeString()}`:“No scan yet”}</div>
-</div>
-</div>
-<div style={{display:“flex”,alignItems:“center”,gap:10}}>
-{scanning && <div style={{fontSize:11,color:”#4a6080”}}>{progress.ticker} ({progress.cur}/{progress.tot})</div>}
-<button className="btn btn-primary" onClick={runScan} disabled={scanning}>
-{scanning?“⏳ Scanning…”:“▶ Full Daily Scan”}
-</button>
-</div>
-</div>
+// Position sizer calc
+const en=parseFloat(s.entry),stn=parseFloat(s.stop);
+const rD=ACCOUNT*(s.riskPct/100),sd=en-stn;
+let sh=sd>0?Math.floor(rD/sd):0;
+const cost=sh*en,cap=ACCOUNT*0.3;
+const capped=cost>cap?Math.floor(cap/en):sh;
 
-```
-  {/* Stats */}
-  <div style={{padding:"14px 20px",display:"flex",gap:10,flexWrap:"wrap"}}>
-    <StatBox label="Posture" value={posture} color={postureColor}/>
-    <StatBox label="SPY" value={spyPrice?`$${fmt(spyPrice)}`:null} color={spyChg>=0?"#22c55e":"#ef4444"}/>
-    <StatBox label="SPY Chg" value={fmtPct(spyChg)} color={spyChg>=0?"#22c55e":"#ef4444"}/>
-    <StatBox label="Signals" value={signals.length||"0"} color="#3b82f6"/>
-    <StatBox label="Account" value="$1,000" color="#f59e0b"/>
-    <StatBox label="Risk/Trade" value={`$${fmt(ACCOUNT_SIZE*BASE_RISK_PCT/100)}`} color="#8b5cf6"/>
-  </div>
+document.getElementById(“app”).innerHTML = `
 
-  {/* Tabs */}
-  <div style={{padding:"0 20px",display:"flex",gap:4,borderBottom:"1px solid #1e2a3a"}}>
-    {[["signals",`Signals (${signals.length})`],["sectors","Sectors"],["sizer","Sizer"]].map(([id,label])=>(
-      <button key={id} className={`tab${tab===id?" active":""}`} onClick={()=>setTab(id)}>{label}</button>
-    ))}
-  </div>
-
-  {/* Signals Tab */}
-  {tab==="signals" && (
-    <div>
-      {signals.length===0&&!scanning?(
-        <div style={{textAlign:"center",padding:60,color:"#4a6080"}}>
-          <div style={{fontSize:40,marginBottom:12}}>📡</div>
-          <div style={{fontSize:16,fontWeight:600}}>No signals yet</div>
-          <div style={{fontSize:13,marginTop:8}}>Click Full Daily Scan to start</div>
-        </div>
-      ):(
-        <>
-          <div className="col-header">
-            {["#","Ticker","Price","Setup","Alert","Stop","2R","5R","Shares"].map((h,i)=>(
-              <div key={h} className={i>3?"hide-mobile":""} style={{fontSize:10,color:"#4a6080",letterSpacing:1,textTransform:"uppercase",fontWeight:700}}>{h}</div>
-            ))}
-          </div>
-          {signals.map((s,i)=>(
-            <div key={s.ticker} className="signal-row">
-              <div className="mono" style={{color:"#4a6080",fontSize:12}}>{i+1}</div>
-              <div className="mono" style={{fontWeight:800,color:"#f1f5f9",fontSize:13}}>{s.ticker}</div>
-              <div className="mono" style={{color:s.change>=0?"#22c55e":"#ef4444",fontSize:12}}>${fmt(s.price)} <span style={{fontSize:10}}>{fmtPct(s.change)}</span></div>
-              <div style={{display:"flex",flexWrap:"wrap",gap:2}}>{s.tags.map(t=><Tag key={t} label={t}/>)}</div>
-              <div className="mono hide-mobile" style={{color:"#64748b",fontSize:11}}>A:${s.alert}</div>
-              <div className="mono hide-mobile" style={{color:"#ef4444",fontSize:11}}>S:${s.stop}</div>
-              <div className="mono hide-mobile" style={{color:"#22c55e",fontSize:11}}>2R:${s.t2r}</div>
-              <div className="mono hide-mobile" style={{color:"#10b981",fontSize:11}}>5R:${s.t5r}</div>
-              <div className="mono hide-mobile" style={{color:"#94a3b8",fontSize:11}}>{s.shares}sh</div>
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  )}
-
-  {/* Sectors Tab */}
-  {tab==="sectors" && (
-    <div style={{paddingTop:8}}>
-      {sectors.length===0?(
-        <div style={{textAlign:"center",padding:60,color:"#4a6080"}}>
-          <div style={{fontSize:40,marginBottom:12}}>🔥</div>
-          <div style={{fontSize:16,fontWeight:600}}>Run a scan to see sector rankings</div>
-        </div>
-      ):sectors.map(s=>{
-        const c=s.status==="HOT"?"#22c55e":s.status==="WARM"?"#f59e0b":"#ef4444";
-        return (
-          <div key={s.name} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 20px",borderBottom:"1px solid #0d1117"}}>
-            <div style={{width:130,fontSize:13,color:"#e2e8f0"}}>{s.name}</div>
-            <div style={{flex:1,background:"#0d1117",borderRadius:4,height:6,overflow:"hidden"}}>
-              <div style={{width:`${(s.score/4)*100}%`,background:c,height:"100%",borderRadius:4}}/>
-            </div>
-            <div className="mono" style={{width:36,color:"#64748b",fontSize:12,textAlign:"right"}}>{fmt(s.score,1)}</div>
-            <div style={{width:44,textAlign:"center",fontSize:11,fontWeight:700,color:c,background:c+"22",borderRadius:4,padding:"2px 6px"}}>{s.status}</div>
-          </div>
-        );
-      })}
-    </div>
-  )}
-
-  {/* Sizer Tab */}
-  {tab==="sizer" && (
-    <div style={{padding:24,maxWidth:460}}>
-      <div style={{fontSize:16,fontWeight:700,marginBottom:20}}>Position Size Calculator</div>
-      <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        {[["Entry Price ($)",entry,setEntry,"e.g. 75.50"],["Stop Price ($)",stopP,setStopP,"e.g. 72.00"]].map(([label,val,set,ph])=>(
-          <div key={label}>
-            <div style={{fontSize:11,color:"#4a6080",marginBottom:6,letterSpacing:1,textTransform:"uppercase"}}>{label}</div>
-            <input type="number" value={val} onChange={e=>set(e.target.value)} placeholder={ph}/>
-          </div>
-        ))}
+  <div style="min-height:100vh;padding-bottom:50px">
+    <!-- Header -->
+    <div style="background:linear-gradient(135deg,#0d1117,#0a1628);border-bottom:1px solid #1e2a3a;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="width:34px;height:34px;border-radius:8px;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:16px">I</div>
         <div>
-          <div style={{fontSize:11,color:"#4a6080",marginBottom:6,letterSpacing:1,textTransform:"uppercase"}}>Risk % (1–3%)</div>
-          <input type="range" min={1} max={3} step={0.5} value={riskPct} onChange={e=>setRiskPct(parseFloat(e.target.value))}/>
-          <div className="mono" style={{fontSize:13,color:"#3b82f6",marginTop:4}}>{riskPct}% = ${fmt(riskD)} risk</div>
+          <div style="font-size:17px;font-weight:800">Iain's Trading System</div>
+          <div style="font-size:11px;color:#4a6080">${s.lastScan?"Last scan: "+s.lastScan.toLocaleTimeString():"No scan yet"}</div>
         </div>
       </div>
-      {entryN>0&&stopN>0&&sd>0&&(
-        <div style={{marginTop:24,background:"#0d1117",border:"1px solid #1e2a3a",borderRadius:12,padding:20}}>
-          {[
-            ["Shares to Buy",capped,"#3b82f6"],
-            ["Position Cost",`$${fmt(capped*entryN)}`,"#f59e0b"],
-            ["Stop Distance",`$${fmt(sd)} (${fmt(sd/entryN*100)}%)`,"#ef4444"],
-            ["2R Target",`$${fmt(entryN+sd*2)}`,"#22c55e"],
-            ["5R Target",`$${fmt(entryN+sd*5)}`,"#10b981"],
-            ["Max Risk",`$${fmt(riskD)}`,"#8b5cf6"],
-          ].map(([label,val,color])=>(
-            <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-              <div style={{fontSize:13,color:"#64748b"}}>{label}</div>
-              <div className="mono" style={{fontSize:16,fontWeight:700,color}}>{val}</div>
-            </div>
-          ))}
-          {cost>cap&&<div style={{fontSize:12,color:"#f97316",background:"#f9730322",padding:"8px 12px",borderRadius:6}}>Position capped at 30% of account (${fmt(cap)})</div>}
-        </div>
-      )}
+      <div style="display:flex;align-items:center;gap:10px">
+        ${s.scanning?`<div style="font-size:11px;color:#4a6080">${s.progress.ticker} (${s.progress.cur}/${s.progress.tot})</div>`:""}
+        <button class="btn btn-primary" onclick="runScan()" ${s.scanning?"disabled":""}>
+          ${s.scanning?"⏳ Scanning...":"▶ Full Daily Scan"}
+        </button>
+      </div>
     </div>
-  )}
 
-  {/* Footer */}
-  <div style={{position:"fixed",bottom:0,left:0,right:0,background:"#0d1117",borderTop:"1px solid #1e2a3a",padding:"8px 20px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-    <div style={{fontSize:11,color:"#4a6080"}}>
-      {scanning?`Scanning ${progress.cur}/${progress.tot} — ${progress.ticker}`:signals.length>0?`${signals.length} signals · ${sectors.filter(s=>s.status==="HOT").length} hot sectors`:"Ready — click Full Daily Scan"}
+```
+<!-- Stats -->
+<div style="padding:14px 20px;display:flex;gap:10px;flex-wrap:wrap">
+  ${statBox("Posture",s.posture||"--",pc)}
+  ${statBox("SPY",s.spyPrice?"$"+fmt(s.spyPrice):null,s.spyChg>=0?"#22c55e":"#ef4444")}
+  ${statBox("SPY Chg",fmtP(s.spyChg),s.spyChg>=0?"#22c55e":"#ef4444")}
+  ${statBox("Signals",String(s.signals.length),"#3b82f6")}
+  ${statBox("Account","$1,000","#f59e0b")}
+  ${statBox("Risk/Trade","$"+fmt(ACCOUNT*BASE_RISK/100),"#8b5cf6")}
+</div>
+
+<!-- Tabs -->
+<div style="padding:0 20px;display:flex;gap:4px;border-bottom:1px solid #1e2a3a">
+  <button class="tab ${s.tab==="signals"?"active":""}" onclick="setState({tab:'signals'})">📊 Signals (${s.signals.length})</button>
+  <button class="tab ${s.tab==="sectors"?"active":""}" onclick="setState({tab:'sectors'})">🔥 Sectors</button>
+  <button class="tab ${s.tab==="sizer"?"active":""}" onclick="setState({tab:'sizer'})">🧮 Sizer</button>
+</div>
+
+<!-- Signals -->
+${s.tab==="signals"?`
+  ${s.signals.length===0?`
+    <div style="text-align:center;padding:60px;color:#4a6080">
+      <div style="font-size:40px;margin-bottom:12px">📡</div>
+      <div style="font-size:16px;font-weight:600">No signals yet</div>
+      <div style="font-size:13px;margin-top:8px">Click Full Daily Scan to start</div>
     </div>
-    <div style={{fontSize:11,color:"#1e2a3a"}}>Iain's System v1.0</div>
+  `:`
+    <div class="header-row">
+      ${["#","Ticker","Price","Setup","Alert","Stop","2R","5R","Shares"].map((h,i)=>`<div class="mono ${i>3?"hm":""}" style="font-size:10px;color:#4a6080;letter-spacing:1px;text-transform:uppercase;font-weight:700">${h}</div>`).join("")}
+    </div>
+    ${s.signals.map((sig,i)=>`
+      <div class="signal-row" style="background:${i%2===0?"#0a0f16":"#080c12"}">
+        <div class="mono" style="color:#4a6080;font-size:12px">${i+1}</div>
+        <div class="mono" style="font-weight:800;color:#f1f5f9;font-size:13px">${sig.ticker}</div>
+        <div class="mono" style="color:${sig.change>=0?"#22c55e":"#ef4444"};font-size:12px">$${fmt(sig.price)} <span style="font-size:10px">${fmtP(sig.change)}</span></div>
+        <div>${sig.tags.map(tagHTML).join("")}</div>
+        <div class="mono hm" style="color:#64748b;font-size:11px">A:$${sig.alert}</div>
+        <div class="mono hm" style="color:#ef4444;font-size:11px">S:$${sig.stop}</div>
+        <div class="mono hm" style="color:#22c55e;font-size:11px">2R:$${sig.t2r}</div>
+        <div class="mono hm" style="color:#10b981;font-size:11px">5R:$${sig.t5r}</div>
+        <div class="mono hm" style="color:#94a3b8;font-size:11px">${sig.shares}sh</div>
+      </div>
+    `).join("")}
+  `}
+`:""}
+
+<!-- Sectors -->
+${s.tab==="sectors"?`
+  ${s.sectors.length===0?`
+    <div style="text-align:center;padding:60px;color:#4a6080">
+      <div style="font-size:40px;margin-bottom:12px">🔥</div>
+      <div style="font-size:16px;font-weight:600">Run a scan to see sector rankings</div>
+    </div>
+  `:`
+    <div style="padding-top:8px">
+      ${s.sectors.map(sec=>{
+        const c=sec.status==="HOT"?"#22c55e":sec.status==="WARM"?"#f59e0b":"#ef4444";
+        return `<div style="display:flex;align-items:center;gap:12px;padding:10px 20px;border-bottom:1px solid #0d1117">
+          <div style="width:130px;font-size:13px;color:#e2e8f0">${sec.name}</div>
+          <div style="flex:1;background:#0d1117;border-radius:4px;height:6px;overflow:hidden">
+            <div style="width:${(sec.score/4)*100}%;background:${c};height:100%;border-radius:4px"></div>
+          </div>
+          <div class="mono" style="width:36px;color:#64748b;font-size:12px;text-align:right">${fmt(sec.score,1)}</div>
+          <div style="width:44px;text-align:center;font-size:11px;font-weight:700;color:${c};background:${c}22;border-radius:4px;padding:2px 6px">${sec.status}</div>
+        </div>`;
+      }).join("")}
+    </div>
+  `}
+`:""}
+
+<!-- Sizer -->
+${s.tab==="sizer"?`
+  <div style="padding:24px;max-width:460px">
+    <div style="font-size:16px;font-weight:700;margin-bottom:20px">Position Size Calculator</div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div>
+        <div style="font-size:11px;color:#4a6080;margin-bottom:6px;letter-spacing:1px;text-transform:uppercase">Entry Price ($)</div>
+        <input type="number" value="${s.entry}" placeholder="e.g. 75.50" oninput="setState({entry:this.value})"/>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#4a6080;margin-bottom:6px;letter-spacing:1px;text-transform:uppercase">Stop Price ($)</div>
+        <input type="number" value="${s.stop}" placeholder="e.g. 72.00" oninput="setState({stop:this.value})"/>
+      </div>
+      <div>
+        <div style="font-size:11px;color:#4a6080;margin-bottom:6px;letter-spacing:1px;text-transform:uppercase">Risk % (1–3%)</div>
+        <input type="range" min="1" max="3" step="0.5" value="${s.riskPct}" oninput="setState({riskPct:parseFloat(this.value)})"/>
+        <div class="mono" style="font-size:13px;color:#3b82f6;margin-top:4px">${s.riskPct}% = $${fmt(rD)} risk</div>
+      </div>
+    </div>
+    ${en>0&&stn>0&&sd>0?`
+      <div style="margin-top:24px;background:#0d1117;border:1px solid #1e2a3a;border-radius:12px;padding:20px">
+        ${[
+          ["Shares to Buy",capped,"#3b82f6"],
+          ["Position Cost","$"+fmt(capped*en),"#f59e0b"],
+          ["Stop Distance","$"+fmt(sd)+" ("+fmt(sd/en*100)+"%)","#ef4444"],
+          ["2R Target","$"+fmt(en+sd*2),"#22c55e"],
+          ["5R Target","$"+fmt(en+sd*5),"#10b981"],
+          ["Max Risk","$"+fmt(rD),"#8b5cf6"],
+        ].map(([l,v,c])=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <div style="font-size:13px;color:#64748b">${l}</div>
+            <div class="mono" style="font-size:16px;font-weight:700;color:${c}">${v}</div>
+          </div>
+        `).join("")}
+        ${cost>cap?`<div style="font-size:12px;color:#f97316;background:#f9730322;padding:8px 12px;border-radius:6px">Position capped at 30% of account ($${fmt(cap)})</div>`:""}
+      </div>
+    `:""}
   </div>
+`:""}
+
+<!-- Footer -->
+<div style="position:fixed;bottom:0;left:0;right:0;background:#0d1117;border-top:1px solid #1e2a3a;padding:8px 20px;display:flex;justify-content:space-between;align-items:center">
+  <div style="font-size:11px;color:#4a6080">
+    ${s.scanning?`Scanning ${s.progress.cur}/${s.progress.tot} — ${s.progress.ticker}`:s.signals.length>0?`${s.signals.length} signals · ${s.sectors.filter(x=>x.status==="HOT").length} hot sectors`:"Ready — click Full Daily Scan"}
+  </div>
+  <div style="font-size:11px;color:#1e2a3a">Iain's System v1.0</div>
 </div>
 ```
 
-);
+  </div>`;
 }
 
-ReactDOM.createRoot(document.getElementById(‘root’)).render(<App/>);
+// Make functions global
+window.runScan = runScan;
+window.setState = setState;
+
+render();
 </script>
 
 </body>
