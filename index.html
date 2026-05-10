@@ -45,7 +45,7 @@ var SECTORS=[
   {name:"Consumer",tickers:["AMZN","TSLA","HD","MCD","NKE","LULU","DECK","ONON","CROX","RH"]}
 ];
 var TAG_COLORS={PDH:"#22c55e",ATH:"#f59e0b",nrATH:"#f59e0b",VCP:"#3b82f6",UC:"#8b5cf6","21e":"#06b6d4","50e":"#0ea5e9","RS+":"#10b981",WK:"#a855f7","!ATR":"#ef4444","!EXT":"#f97316"};
-var state={scanning:false,tab:"signals",signals:[],sectors:[],posture:null,spyPrice:null,spyChg:null,lastScan:null,progress:{cur:0,tot:0,ticker:""},entry:"",stop:"",riskPct:BASE_RISK};
+var state={scanning:false,tab:"signals",signals:[],sectors:[],developing:[],posture:null,spyPrice:null,spyChg:null,lastScan:null,progress:{cur:0,tot:0,ticker:""},entry:"",stop:"",riskPct:BASE_RISK};
 
 function fmt(n,d){d=d||2;return n==null||isNaN(n)?"--":Number(n).toFixed(d);}
 function fmtP(n){if(n==null||isNaN(n))return "--";return(n>=0?"+":"")+Number(n).toFixed(2)+"%";}
@@ -90,6 +90,38 @@ function analyze(ticker,data){
     alert:fmt(price),stop:fmt(stop),t2r:fmt(price+sd*2),t5r:fmt(price+sd*5),
     shares:sh,score:eng.length*2+trig.length+(rs>0.1?1:0)+(price>=h52*0.97?1:0)};
 }
+function analyzeDeveloping(ticker,data){
+  var cl=[],hi=[],lo=[];
+  for(var i=0;i<data.length;i++){cl.push(data[i].c);hi.push(data[i].h);lo.push(data[i].l);}
+  if(cl.length<55)return null;
+  var price=cl[cl.length-1],prev=cl[cl.length-2];
+  var e9=calcEma(cl,9),e21=calcEma(cl,21),e50=calcEma(cl,50);
+  var needs=[];
+  var rs=price/cl[cl.length-20]-1;
+  // Stage 1 base: price sideways near 50 EMA, EMAs flattening
+  var stage1=Math.abs(e9-e21)/e21<0.02&&Math.abs(price-e50)/e50<0.05&&price<e9;
+  // 50 EMA pivot: price within 3% of 50 EMA, trending up
+  var ema50pivot=Math.abs(price-e50)/e50<0.03&&e50>calcEma(cl.slice(0,-10),50);
+  // Weekly compression: range tightening but not stage 2 yet
+  var rng=[];for(var i=1;i<cl.slice(-10).length;i++)rng.push(Math.abs(cl[cl.length-10+i]-cl[cl.length-11+i]));
+  var rr=(rng.slice(-3).reduce(function(a,b){return a+b;},0))/3;
+  var pr=(rng.slice(0,7).reduce(function(a,b){return a+b;},0))/7;
+  var coiling=rr<pr*0.6;
+  // RS leader in weak market: holding up well
+  var rsLeader=rs>0.03&&price>e50;
+  if(!stage1&&!ema50pivot&&!coiling&&!rsLeader)return null;
+  if(stage1)needs.push("Needs: Stage 1 breakout above "+fmt(e9));
+  if(ema50pivot)needs.push("Needs: 50 EMA reclaim + PDH");
+  if(coiling&&!stage1)needs.push("Needs: Volume expansion + PDH trigger");
+  if(rsLeader&&!ema50pivot)needs.push("Needs: Market recovery + PDH");
+  var tags=[];
+  if(stage1)tags.push("S1-BASE");
+  if(ema50pivot)tags.push("50e-PIVOT");
+  if(coiling)tags.push("COILING");
+  if(rsLeader)tags.push("RS-LEAD");
+  return{ticker:ticker,price:price,change:((price-prev)/prev)*100,tags:tags,needs:needs[0]||"Watch for trigger",rs:fmt(rs*100)};
+}
+
 async function fetchStock(ticker){
   try{
     var url="https://query1.finance.yahoo.com/v8/finance/chart/"+ticker+"?interval=1d&range=1y";
@@ -146,6 +178,7 @@ function renderTabs(){
   el.innerHTML=
     "<button class='tab-btn"+(s.tab==="signals"?" active":"")+"' onclick='setTab(\"signals\")'>Signals ("+s.signals.length+")</button>"+
     "<button class='tab-btn"+(s.tab==="sectors"?" active":"")+"' onclick='setTab(\"sectors\")'>Sectors</button>"+
+    "<button class='tab-btn"+(s.tab==="developing"?" active":"")+"' onclick='setTab(\"developing\")'>Developing ("+s.developing.length+")</button>"+
     "<button class='tab-btn"+(s.tab==="sizer"?" active":"")+"' onclick='setTab(\"sizer\")'>Sizer</button>";
 }
 
@@ -201,7 +234,32 @@ function renderContent(){
       html+="</div>";
       el.innerHTML=html;
     }
-  }else{
+  }else if(s.tab==="developing"){
+    if(s.developing.length===0){
+      el.innerHTML="<div style='text-align:center;padding:60px;color:#4a6080'><div style='font-size:40px;margin-bottom:12px'>👁</div><div style='font-size:16px;font-weight:600'>No developing names yet</div><div style='font-size:13px;margin-top:8px'>Run a scan to populate watchlist</div></div>";
+    }else{
+      var html="<div style='padding:12px 20px;background:#0a1628;border-bottom:1px solid #1e2a3a;font-size:12px;color:#4a6080'>These are NOT trade signals. Set alerts and wait for the trigger.</div>";
+      for(var i=0;i<s.developing.length;i++){
+        var d=s.developing[i];
+        var cc=d.change>=0?"#22c55e":"#ef4444";
+        var tagsHtml="";
+        for(var j=0;j<d.tags.length;j++){
+          var t=d.tags[j];
+          var tc=t==="S1-BASE"?"#8b5cf6":t==="50e-PIVOT"?"#0ea5e9":t==="COILING"?"#3b82f6":"#10b981";
+          tagsHtml+="<span style='background:"+tc+"22;color:"+tc+";border:1px solid "+tc+"44;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:700;margin-right:3px;display:inline-block'>"+t+"</span>";
+        }
+        html+="<div style='padding:12px 20px;border-bottom:1px solid #0d1117;background:"+(i%2===0?"#0a0f16":"#080c12")+"'>"
+          +"<div style='display:flex;align-items:center;gap:12px;margin-bottom:6px'>"
+          +"<div class='mono' style='font-weight:800;color:#f1f5f9;font-size:14px;min-width:60px'>"+d.ticker+"</div>"
+          +"<div class='mono' style='color:"+cc+";font-size:12px'>$"+fmt(d.price)+" <span style='font-size:10px'>"+fmtP(d.change)+"</span></div>"
+          +"<div style='color:#64748b;font-size:11px;margin-left:4px'>RS: "+d.rs+"%</div>"
+          +"<div>"+tagsHtml+"</div></div>"
+          +"<div style='font-size:12px;color:#f59e0b;padding-left:2px'>"+d.needs+"</div>"
+          +"</div>";
+      }
+      el.innerHTML=html;
+    }
+  }else if(s.tab==="sizer"){
     var en=parseFloat(s.entry)||0,stn=parseFloat(s.stop)||0;
     var rD=ACCOUNT*(s.riskPct/100),sd=en-stn;
     var sh=sd>0?Math.floor(rD/sd):0;
@@ -260,6 +318,9 @@ async function runScan(){
   state.progress={cur:0,tot:allTickers.length,ticker:""};
   var sectorMap={};
   var allSigs=[];
+  var allDevs=[];
+  var seenSigs={};
+  var seenDevs={};
   for(var si=0;si<SECTORS.length;si++){
     var sec=SECTORS[si];var score=0;var count=0;
     for(var ti=0;ti<sec.tickers.length;ti++){
@@ -272,8 +333,14 @@ async function runScan(){
         var e9=calcEma(cl,9),e21=calcEma(cl,21),e50=calcEma(cl,50),p=cl[cl.length-1];
         var sc=0;if(p>e9)sc++;if(p>e21)sc++;if(p>e50)sc++;if(e9>e21)sc++;
         score+=sc;count++;
-        var sig=analyze(ticker,data);
-        if(sig){sig.sector=sec.name;allSigs.push(sig);}
+        if(!seenSigs[ticker]){
+          var sig=analyze(ticker,data);
+          if(sig){sig.sector=sec.name;allSigs.push(sig);seenSigs[ticker]=1;}
+          else{
+            var dev=analyzeDeveloping(ticker,data);
+            if(dev){dev.sector=sec.name;allDevs.push(dev);seenDevs[ticker]=1;}
+          }
+        }
       }
       await new Promise(function(r){setTimeout(r,150);});
     }
@@ -283,7 +350,8 @@ async function runScan(){
     state.sectors=sArr;
   }
   allSigs.sort(function(a,b){return b.score-a.score;});
-  state.signals=allSigs;state.scanning=false;state.lastScan=new Date();
+  allDevs.sort(function(a,b){return b.rs-a.rs;});
+  state.signals=allSigs;state.developing=allDevs;state.scanning=false;state.lastScan=new Date();
   render();
 }
 
