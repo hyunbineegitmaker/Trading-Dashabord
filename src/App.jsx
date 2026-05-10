@@ -1,3 +1,4 @@
+// Iain Trading System v1.0
 import { useState, useEffect, useCallback } from “react”;
 
 const ACCOUNT_SIZE = 1000;
